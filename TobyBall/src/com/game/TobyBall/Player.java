@@ -22,6 +22,10 @@ public class Player {
 	boolean alive;
 	int xVelocity, yVelocity;
 	float lastKnownX, lastKnownY;
+	int lives;
+	int score;
+	boolean invisible;
+	
 	public Player(){
 		
 	}
@@ -35,6 +39,11 @@ public class Player {
 		id = inId;
 		xVelocity = 0;
 		yVelocity = 0;
+		lives = 5;
+		score = 0;
+		lastKnownX = pos.x;
+		lastKnownY = pos.y;
+		invisible = false;
 		
 		
 	}
@@ -78,13 +87,35 @@ public class Player {
 	}
 	
 	public void setBombHolding(Bomb inBomb){
+		inBomb.setOwner(id);
 		bombHolding = inBomb;
+		
 	}
 	
 	public void plantBomb(Bomb b){
 		bombsPlanted.add(bombHolding);
 		bombHolding = null;
-		b.plantBomb(pos.x, pos.y);
+		b.plantBomb(pos.x, pos.y, id);
+	}
+	
+	public void plantBomb(Bomb b, float inX, float inY){
+		bombsPlanted.add(bombHolding);
+		bombHolding = null;
+		b.plantBomb(inX, inY, id);
+	}
+	
+	public void throwBomb(Bomb b){
+	
+		bombsPlanted.add(bombHolding);
+		bombHolding = null;
+		b.throwBomb(pos.x, pos.y, id);
+	}
+	
+	public void throwBomb(Bomb b, float inX, float inY){
+		
+		bombsPlanted.add(bombHolding);
+		bombHolding = null;
+		b.throwBomb(inX, inY, id);
 	}
 	
 	public ArrayList<Bomb> getBombsPlanted(){
@@ -103,6 +134,11 @@ public class Player {
 	
 	public void setPosition(Point2D.Float newPos){
 		pos = newPos;
+		if(playerRect != null){
+			playerRect.setX(pos.x);
+			playerRect.setY(pos.y);
+		}
+		
 	}
 	
 	public String getImageLocation(){
@@ -161,6 +197,9 @@ public class Player {
 			pos.y += yVelocity;
 		}
 		
+		playerRect.setX(pos.x);
+		playerRect.setY(pos.y);
+		
 		
 	}
 	
@@ -178,6 +217,44 @@ public class Player {
 	
 	public void setLastKnownY(float inY){
 		lastKnownY = inY;
+	}
+	
+	public void increaseScore(){
+		score++;
+	}
+	
+	public void decreaseScore(){
+		score--;
+	}
+	
+	public void removeBombPlanted(Bomb inBomb){
+		bombsPlanted.remove(inBomb);
+		
+	}
+	
+	public void removeBombsPlanted(){
+		
+		bombsPlanted.clear();
+	}
+	
+	public void removeBombHolding(){
+		bombHolding = null;
+	}
+	
+	public int getScore(){
+		return score;
+	}
+	
+	public boolean isInvisible(){
+		return invisible;
+	}
+	
+	public void makeInvisible(){
+		invisible = true;
+	}
+	
+	public void makeVisible(){
+		invisible = false;
 	}
 
 }

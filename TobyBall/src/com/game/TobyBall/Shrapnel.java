@@ -12,7 +12,7 @@ import com.esotericsoftware.kryo.io.Output;
 
 public class Shrapnel{
 	
-	
+	private int playerId;
 	private int speed, angle;
 	private float x, y;
 	Point2D.Float position;
@@ -40,7 +40,7 @@ public class Shrapnel{
 	public Shrapnel(float inX, float inY, int inAngle, Texture inImage){
 		
 		//imageLocation = "assets/shrapnel.png";
-		speed = 150;
+		speed = 10;
 		x = inX;
 		y = inY;
 		//position = new Point2D.Float(x,y);
@@ -52,8 +52,8 @@ public class Shrapnel{
 	
 	public void updatePosition(double dtime) {
 	       
-	    x = (float) (x + speed*Math.cos(angle)*dtime);
-	    y = (float) (y + speed*Math.sin(angle)*dtime); 
+	    x = (float) (x + speed*Math.cos(angle));
+	    y = (float) (y + speed*Math.sin(angle)); 
 	    shrapnelRect.setX(x);
 	    shrapnelRect.setY(y);
 	    
@@ -88,6 +88,14 @@ public class Shrapnel{
 	
 	public void setY(float inY){
 		y = inY;
+	}
+	
+	public void setPlayerId(int inId){
+		playerId = inId;
+	}
+	
+	public int getPlayerId(){
+		return playerId;
 	}
 	
 	

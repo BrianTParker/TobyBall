@@ -22,22 +22,28 @@ public class TobyServer {
 	
 	
     private Server server;
-    Connection connection;
+    
     ArrayList<Player> playerList;
     ArrayList<Bomb> bombList;
     Random bombRand;
     int bombId;
-    
+    int playerId;
+    int numPlayers;
+    ArrayList<Wall> wallList = new ArrayList<Wall>();
+    Wall verticalWall;
     
     public TobyServer() throws IOException{
     	bombId = 1;
+    	playerId = 1;
     	bombRand = new Random();
     	playerList = new ArrayList<Player>();
+    	makeWalls();
     	populateBombList();
         server = new Server();
         Log.set(Log.LEVEL_DEBUG);
         new Thread(server).start();
         server.bind(54555, 54777);
+        numPlayers = 0;
         
         Kryo kryo = server.getKryo();
         
@@ -70,39 +76,83 @@ public class TobyServer {
         kryo.register(DeleteBomb.class);
         kryo.register(NewBomb.class);
         kryo.register(DeadPlayer.class);
+        kryo.register(PlayerDisconnect.class);
+        kryo.register(BombSteal.class);
         
         server.addListener(new Listener(){
 		 	
-			public void disconnected(Connection con){
-				
+			public void disconnected(Connection connection){
+				numPlayers--;
 				System.out.println( "Client " + connection.getID() + " Disconnected");
+				PlayerDisconnect playerDis = new PlayerDisconnect();
+				playerDis.playerId = connection.getID();
+				System.out.println("Client Id: " + connection.getID());
+				server.sendToAllTCP(playerDis);
+				
+				Player playerToDelete = null;
+	        	 for(Player p : playerList){
+	        		 if(p.getId() == playerDis.playerId){
+	        			 
+	        			 playerToDelete = p;
+	        			 
+	        		 }
+	        	 }
+	        	 
+	        	 if(playerToDelete != null){
+	        		 playerList.remove(playerToDelete);
+	        	 }
 			 	}
+			
+			
 			     
-		     public void connected(Connection con){
-		    	 connection = con;
-		    	 Gdx.app.postRunnable(new Runnable() {
-			         @Override
-			         public void run() {
-			        	 Random rand = new Random();
-			        	 String asset = "assets/player1.png";
-				         playerList.add(new Player(new Point2D.Float((float)rand.nextInt(1000),(float)rand.nextInt(700)), connection.getID(),asset ));
-				         
-				         
-				         NewPlayerList list = new NewPlayerList();
-				         list.playerList = playerList;
-				         server.sendToAllTCP(list);
-				         
-				         PlayerId id = new PlayerId();
-				         id.id = connection.getID();
-				         connection.sendTCP(id);
-				         
-				         SendBombs newBList = new SendBombs();
-			        	 newBList.bombList = bombList;
-			        	 
-			        	 connection.sendTCP(newBList);
+		     public void connected(Connection connection){
+		    	 
+		    	 
+		    	 
+		    	 
+	        	 numPlayers++;
+	        	 Random rand = new Random();
+	        	 String asset;
+	        	 if(numPlayers == 1){
+	        		 asset = "assets/player1.png";
+	        	 }else if(numPlayers == 2){
+	        		 asset = "assets/player2.png";
+	        	 }else if(numPlayers == 3){
+	        		 asset = "assets/player3.png";
+	        	 }else if(numPlayers == 4){
+	        		 asset = "assets/player4.png";
+	        	 }else{
+	        		 asset = "assets/player5.png";
+	        	 }
+	        		
+	        	 
+		         playerList.add(new Player(getValidPosition(), connection.getID(),asset ));
+		         
+		         
+		         PlayerId id = new PlayerId();
+		         
+		         id.id = connection.getID();
+		         
+		         connection.sendTCP(id);
+		         
+		        	
+		         
+		         playerId++;
+		         
+		         NewPlayerList list = new NewPlayerList();
+		         list.playerList = playerList;
+		         server.sendToAllTCP(list);
+		         
+		         
+		         
+		         SendBombs newBList = new SendBombs();
+	        	 newBList.bombList = bombList;
+	        	 
+	        	 
+	        	 
+	        	 connection.sendTCP(newBList);
 			            
-			         }
-			    });
+			    
 		         
 		        
 		         
@@ -141,30 +191,67 @@ public class TobyServer {
 		         }else if(object instanceof RequestBomb){
 		        	 
 		        	 RequestBomb inBomb = (RequestBomb)object;
+		        	 State oldState;
+		        	 int oldOwner = -1;
+		        	 int newOwner = -1;
 		        	 for(Bomb b : bombList){
-		        		 if(b.getId() == inBomb.bombId && b.state == State.INERT){
+		        		 if(b.getId() == inBomb.bombId){
+		        			 
+		        			 
+		        		 }
+		        		 if(b.getId() == inBomb.bombId && (b.state == State.INERT || b.state == State.THROWN)){
+		        			 oldState = b.getState();
+		        			 
+		        			 oldOwner = b.owner;
 		        			 b.setState(State.TRAVELLING);
 		        			 for(Player p : playerList){
 		        				 if(p.getId() == inBomb.playerId){
+		        					 newOwner = p.getId();
 		        					 p.setBombHolding(b);
 		        				 }
 		        			 }
+		        			 if(oldState == State.THROWN){
+		        				 
+		        				 BombSteal bomb = new BombSteal();
+		        				 bomb.oldOwner = oldOwner;
+		        				 bomb.newOwner = newOwner;
+		        				 bomb.bombId = b.getId();
+		        				 server.sendToAllTCP(bomb);
+		        			 }else{
+		        				 server.sendToAllTCP(inBomb);
+		        			 }
 		        			 
-		        			 server.sendToAllTCP(inBomb);
 		        			 
 		        		 }
 		        	 }
 		         }if(object instanceof ArmBomb){
 		        	 
 		        	 ArmBomb inBomb = (ArmBomb)object;
+		        	 
 		        	 for(Bomb b : bombList){
 		        		 if(b.getId() == inBomb.bombId){
-		        			 b.setState(State.ARMED);
+		        			 
+		        			 if(inBomb.thrown == 1){
+		        				 
+		        				 b.setState(State.THROWN);
+		        				 b.setXThrowVelocity(inBomb.xVel);
+		        				 b.setYThrowVelocity(inBomb.yVel);
+		        			 }else{
+		        				 b.setState(State.ARMED);
+		        			 }
+		        			 
 		        			 for(Player p : playerList){
 		        				 if(p.getId() == connection.getID()){
-		        					 p.plantBomb(b);
+		        					 if(inBomb.thrown == 1){
+		        						 p.throwBomb(b, inBomb.xPos, inBomb.yPos);
+		        					 }else{
+		        						 p.plantBomb(b, inBomb.xPos, inBomb.yPos); 
+		        					 }
+		        					 
 		        				 }
 		        			 }
+		        			 
+		        			 
 		        		 }
 		        		 
 		        	 }
@@ -174,6 +261,7 @@ public class TobyServer {
 		        	 
 		         }else if(object instanceof ExplodeBomb){
 		        	 ExplodeBomb inBomb = (ExplodeBomb)object;
+		        	 
 		        	 for(int i = 0; i < inBomb.bombIdList.length; i++){
 		        		 for(Bomb b : bombList){
 			        		 if(b.getId() == inBomb.bombIdList[i]){
@@ -194,8 +282,8 @@ public class TobyServer {
 		        			 if(b.getDeleteCount() >= playerList.size()){
 		        				 
 		        				 bombToDelete = b;
-		        				newBomb = new Bomb(new Point2D.Float((float)bombRand.nextInt(1000), (float)bombRand.nextInt(700)), bombId);
-	        		    		for(int p = 0; p < 20; p++){
+		        				newBomb = new Bomb(getValidPosition(), bombId);
+	        		    		for(int p = 0; p < 50; p++){
 	        		    			//newBomb.addShrapnel(new Shrapnel(newBomb.getPos().x + 8,newBomb.getPos().y + 8, bombRand.nextInt(360)));
 	        		    			newBomb.addAngle(bombRand.nextInt(360), p);
 	        		    			//newBomb.addShrapnel(new Shrapnel());
@@ -216,12 +304,21 @@ public class TobyServer {
 		        	 }
 		         }else if(object instanceof DeadPlayer){
 		        	 DeadPlayer player = (DeadPlayer)object;
+		        	 
 		        	 if(player.x == 0){
-		        		 server.sendToAllExceptTCP(connection.getID(), player);
+		        		 for(Player p : playerList){
+		        			 if(p.getId() == player.killerId && p.getId() != player.playerId){
+		        				 p.increaseScore();
+		        				 
+		        				 break;
+		        			 }
+		        		 }
+		        		 server.sendToAllTCP(player);
 		        	 }else{
 		        		//get new coordinates
-			        	 player.x = (float)bombRand.nextInt(1000);
-			        	 player.y = (float)bombRand.nextInt(700);
+		        		 Point2D.Float newPos = getValidPosition();
+			        	 player.x = newPos.x;
+			        	 player.y = newPos.y;
 			        	 server.sendToAllTCP(player);
 		        	 }
 		        	 
@@ -240,9 +337,10 @@ public class TobyServer {
     	
     	bombList = new ArrayList<Bomb>();
     	
-    	for(int i = 0; i < 10; i++){
-    		Bomb newBomb = new Bomb(new Point2D.Float((float)bombRand.nextInt(1000), (float)bombRand.nextInt(700)), bombId);
-    		for(int p = 0; p < 20; p++){
+    	for(int i = 0; i < 5; i++){
+    		//Bomb newBomb = new Bomb(new Point2D.Float((float)bombRand.nextInt(1000), (float)bombRand.nextInt(700)), bombId);
+    		Bomb newBomb = new Bomb(getValidPosition(), bombId);
+    		for(int p = 0; p < 50; p++){
     			//newBomb.addShrapnel(new Shrapnel(newBomb.getPos().x + 8,newBomb.getPos().y + 8, bombRand.nextInt(360)));
     			newBomb.addAngle(bombRand.nextInt(360), p);
     			//newBomb.addShrapnel(new Shrapnel());
@@ -276,6 +374,67 @@ public class TobyServer {
     	}
     	
     	server.sendToAllTCP(gameState);
+    	
+    }
+    
+    public Player getPlayer(int inId){
+		Player player = null;
+		
+		for(Player p : playerList){
+			if(p.getId() == inId){
+				player = p;
+				break;
+			}
+		}
+		
+		return player;
+	}
+    
+    public void makeWalls(){
+		
+		wallList.add(new Wall(80, 160, "assets/wall.png"));
+		wallList.add(new Wall(80, 520, "assets/wall.png"));
+		wallList.add(new Wall(700, 520, "assets/wall.png"));
+		wallList.add(new Wall(700, 160, "assets/wall.png"));
+		verticalWall = new Wall(500,200, "assets/wall2.png");
+	}
+    
+    public boolean wallCollision(float inX, float inY){
+		
+		boolean collide = false;
+		
+		Rectangle testRect = new Rectangle(inX, inY, 20, 20);
+		for(Wall w : wallList){
+			collide = false;
+			if(w.getRectangle().overlaps(testRect)){
+				collide = true;
+				break;
+				
+			}
+		}
+		
+		if(testRect.overlaps(verticalWall.getRectangle())){
+			collide = true;
+		}
+		
+		
+		return collide;
+			
+		
+		
+	}
+    
+    public Point2D.Float getValidPosition(){
+    	float x, y;
+    	x = (float)bombRand.nextInt(1000);
+    	y = (float)bombRand.nextInt(700);
+    	
+    	while(wallCollision(x, y) == true){
+    		x = (float)bombRand.nextInt(1000);
+        	y = (float)bombRand.nextInt(700);
+    	}
+    	
+    	return new Point2D.Float(x, y);
     	
     }
     

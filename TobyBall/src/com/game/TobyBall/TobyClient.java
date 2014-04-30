@@ -1,12 +1,20 @@
 package com.game.TobyBall;
 
+
+import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.math.Vector2;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
@@ -17,31 +25,51 @@ import com.game.TobyBall.Bomb.State;
 public class TobyClient {
 	
 	private Client client;
-	private ArrayList<Player> playerList;
+	List<Player> playerList =  Collections.synchronizedList(new ArrayList<Player>());
 	private Connection con;
 	private Player currentPlayer;
 	private int id;
 	private ArrayList<Bomb> bombList;
 	Bomb deleteBomb;
+	int playerIndex;
+	Sound bombPickup;
+	Sound bombPlant;
+	Sound bombExplode;
+	Sound playerDeath;
+	ArrayList<Wall> wallList = new ArrayList<Wall>();
+	public Wall verticalWall;
+	
 	public TobyClient(){
 	
 	}
 	public TobyClient(String IP) throws IOException{
 		client = new Client();
-		playerList = new ArrayList<Player>();
+		//playerList = new Vector<Player>();
+		
 		bombList = new ArrayList<Bomb>();
 	    registerPackets();
 	    new Thread(client).start();
-	    client.connect(60000, IP, 54555, 54777);
+	    client.connect(80000, IP, 54555, 54777);
 	    currentPlayer = new Player();
 	    id = -1;
-	    //System.out.println(client.discoverHost(7777, 60000));
+	    playerIndex = -1;
 	    
-	    new Thread(new Runnable(){
-	    	public void run(){
+	    bombPickup = Gdx.audio.newSound(Gdx.files.internal("assets/pickup.ogg"));
+	    bombPlant = Gdx.audio.newSound(Gdx.files.internal("assets/plant.ogg"));
+		bombExplode = Gdx.audio.newSound(Gdx.files.internal("assets/explode.ogg"));
+		playerDeath = Gdx.audio.newSound(Gdx.files.internal("assets/death.ogg"));
+	    //System.out.println(client.discoverHost(7777, 60000));
+	  
+	    		
+	    	
+	   
 		 client.addListener(new Listener(){
 		    
 			public void connected(Connection connection){
+				
+				pingForId();
+				pingForPlayerList();
+				pingForBombs();
 				
 			}
 			
@@ -55,7 +83,7 @@ public class TobyClient {
 		    	
 		    public void received(Connection connection, Object object){
 		    	
-		    	
+		    			
 		    	
 			        	 if(object instanceof NewPlayerList){
 			        		 final NewPlayerList list = (NewPlayerList)object; 
@@ -69,7 +97,7 @@ public class TobyClient {
 					    		//playerList = list.playerList;
 					    		for(Player serverList : list.playerList){
 					    			found = false;
-					    			
+					    			int indexCount = 0;
 					    			if(playerList.size() > 0){
 						    			for(Player clientList : playerList){
 						    				
@@ -78,22 +106,36 @@ public class TobyClient {
 							    			if(serverList.id == clientList.id){
 							    				if(serverList.id == id){
 							    					currentPlayer = clientList;
+							    					playerIndex = indexCount;
 							    				}
 							    				found = true;
 							    			
 							    			}
-							    			
+							    			indexCount++;
 							    		}
 					    			}
 					    			
 					    			if(found == false){
 					    				
 					    				Player newPlayer = serverList;
+					    				serverList.setImage();
 					    				newPlayer.setImage();
 					    				
-					    				playerList.add(newPlayer);
+					    				playerList.add(serverList);
+					    				
+					    				
 					    			}
 					    		}
+					    		
+					    		if(id == 1){
+			    					playerIndex = 0;
+			    				}else{
+			    					for(Player p2 : playerList){
+			    						if(p2.getId() == id){
+			    							playerIndex = playerList.indexOf(p2);
+			    						}
+			    					}
+			    				}
 					    		
 			        	         }
 			        	      });   
@@ -156,12 +198,15 @@ public class TobyClient {
 					    	         }
 					    	      });
 					    	}else if(object instanceof SendBombs){
+					    		
 					    		final SendBombs bList = (SendBombs)object;
 					    		Gdx.app.postRunnable(new Runnable() {
 					    	         @Override
 					    	         public void run() {
 							    		
+					    	        	 
 							    		for(Bomb serverBomb : bList.bombList){
+							    			
 							    			boolean found = false;
 							    			for(Bomb clientBomb : bombList){
 							    				if(clientBomb.getId() == serverBomb.getId()){
@@ -179,6 +224,7 @@ public class TobyClient {
 							    				bombList.add(newBomb);
 							    			}
 							    		}
+							    		
 					    		
 					    	         }
 					    	      });
@@ -195,10 +241,14 @@ public class TobyClient {
 							    					if(p.getId() == inBomb.playerId){
 							    						b.setState(State.TRAVELLING);
 							    						p.setBombHolding(b);
+							    						
+							    						bombPickup.play();
+							    						//bombPickup.dispose();
 							    					}
 							    				}
 							    			}
 							    		}
+							    		
 					    	         }
 					    	      });
 					    	}else if(object instanceof ArmBomb){
@@ -211,12 +261,27 @@ public class TobyClient {
 							    		for(Bomb b : bombList){
 							    			if(b.getId() == inBomb.bombId){
 							    				b.setImage("assets/bomb_armed.png");
-							    				b.setState(State.ARMED);
-							    				for(Player p : playerList){
-							    					if(p.getId() == inBomb.playerId){
-							    						p.plantBomb(b);
-							    					}
+							    				if(inBomb.thrown == 1){
+							    					b.setState(State.THROWN);
+							    					b.setXThrowVelocity(inBomb.xVel);
+							    					b.setYThrowVelocity(inBomb.yVel);
+							    					for(Player p : playerList){
+								    					if(p.getId() == inBomb.playerId){
+								    						p.throwBomb(b, inBomb.xPos, inBomb.yPos);
+								    						bombPlant.play();
+								    					}
+								    				}
+							    				}else{
+							    					b.setState(State.ARMED);
+							    					for(Player p : playerList){
+								    					if(p.getId() == inBomb.playerId){
+								    						p.plantBomb(b, inBomb.xPos, inBomb.yPos);
+								    						bombPlant.play();
+								    					}
+								    				}
 							    				}
+							    				
+							    				
 							    			}
 							    		}
 							    	  }
@@ -231,11 +296,14 @@ public class TobyClient {
 							    		
 							    		for(int i = 0; i < inBomb.bombIdList.length; i++){
 							    			for(Bomb b : bombList){
+							    				
 								    			if(b.getId() == inBomb.bombIdList[i]){
 								    				b.setState(State.EXPLODE);
+								    				//bombExplode.play();
 								    			}
 								    		}
 							    		}
+							    		
 					    	         }
 					    	      });
 					    	}else if(object instanceof UpdateGameState){
@@ -286,25 +354,89 @@ public class TobyClient {
 					    	         @Override
 					    	         public void run() {
 					    	        	 for(Player p : playerList){
+					    	        		 
 					    	        		 if(p.getId() == player.playerId){
 					    	        			 
+					    	        			 if(p.getId() == player.killerId){
+					    	        				 if(p.getScore() > 0){
+					    	        					 p.decreaseScore();
+					    	        				 }
+					    	        				 
+					    	        			 }
 					    	        			 if(player.x == 0){
 					    	        				 p.makeDead();
+					    	        				 playerDeath.play();
+					    	        				 for(Bomb b : p.getBombsPlanted()){
+					    	        					 if(b.getState() != State.EXPLODE){
+					    	        						 sendBombDelete(b.getId());
+						    	        					 deleteBomb(b);
+					    	        					 }
+					    	        					 
+					    	        				 }
+					    	        				 if(p.getBomb() != null){
+					    	        					 sendBombDelete(p.getBomb().getId());
+						    	        				 deleteBomb(p.getBomb());
+						    	        				 p.removeBombHolding();
+					    	        				 }
+					    	        				 
+					    	        				 p.removeBombsPlanted();
+					    	        				 
 					    	        			 }else{
 					    	        				 p.setPosition(new Point2D.Float(player.x, player.y));
+					    	        				 p.setLastKnownX(player.x);
+					    	        				 p.setLastKnownY(player.y);
 						    	        			 p.makeAlive();
 					    	        			 }
 					    	        			 
+					    	        		 }else if(p.getId() == player.killerId && p.getId() != player.playerId){
+					    	        			 p.increaseScore();
+					    	        			
 					    	        		 }
 					    	        	 }
+					    	         }
+					    		});
+					    	}else if(object instanceof PlayerDisconnect){
+					    		final PlayerDisconnect playerDis = (PlayerDisconnect)object;
+					    		
+					    		Gdx.app.postRunnable(new Runnable() {
+					    	         @Override
+					    	         public void run() {
+					    	        	 
+					    	        	 Player playerToDelete = null;
+					    	        	 for(Player p : playerList){
+					    	        		 if(p.getId() == playerDis.playerId){
+					    	        			 
+					    	        			 playerToDelete = p;
+					    	        			 if(playerIndex > playerList.indexOf(p)){
+						    	        			 playerIndex--;
+						    	        		 }
+					    	        			 break;
+					    	        		 }
+					    	        	 }
+					    	        	 
+					    	        	 if(playerToDelete != null){
+					    	        		 
+					    	        		 playerList.remove(playerToDelete);
+					    	        		 
+					    	        	 }
+					    	         }
+					    		});
+					    	}else if(object instanceof BombSteal){
+					    		final BombSteal bomb = (BombSteal)object;
+					    		
+					    		Gdx.app.postRunnable(new Runnable() {
+					    	         @Override
+					    	         public void run() {
+					    	        	 getBomb(bomb.bombId).setState(State.TRAVELLING);
+					    	        	 getPlayer(bomb.oldOwner).removeBombPlanted(getBomb(bomb.bombId));
+					    	        	 getPlayer(bomb.newOwner).setBombHolding(getBomb(bomb.bombId));
 					    	         }
 					    		});
 					    	}
 			         }
 		    	});
-	    	}
-	    }).start();
-		    	
+	    
+	   
 		   
 	            
 	 }
@@ -341,10 +473,12 @@ public class TobyClient {
         kryo.register(DeleteBomb.class);
         kryo.register(NewBomb.class);
         kryo.register(DeadPlayer.class);
+        kryo.register(PlayerDisconnect.class);
+        kryo.register(BombSteal.class);
         
     }
 	
-	public ArrayList<Player> getPlayerList(){
+	public List<Player> getPlayerList(){
 		return playerList;
 	}
 	
@@ -367,17 +501,27 @@ public class TobyClient {
 	
 	public void updatePlayerPosition(float velocity, String inDirection){
 		
-		if(id > 0 && playerList.size() >= id){
-			//I'm going to try this logic for position updates until I find that it's unreliable.  I'm tired of looping through each player every time
-			if(inDirection == "x"){
-				if((velocity < 0 && playerList.get(id - 1).getPos().x >= 0) || (velocity >= 0 && playerList.get(id - 1).getPos().x <= 1080 - playerList.get(id - 1).getImage().getWidth())){
-					playerList.get(id - 1).updateX(velocity);
-					//sendPosition(playerList.get(id - 1).getPos());
+		if(playerIndex >= playerList.size()){
+			for(Player p : playerList){
+				if(p.getId() == id){
+					playerIndex = playerList.indexOf(p);
 				}
-			}else{
-				if((velocity < 0 && playerList.get(id - 1).getPos().y > 0) || (velocity > 0 && playerList.get(id - 1).getPos().y <= 720 - playerList.get(id - 1).getImage().getHeight())){
-					playerList.get(id - 1).updateY(velocity);
-					//sendPosition(playerList.get(id - 1).getPos());
+			}
+		}else{
+		
+			if(playerIndex >= 0 && playerList.size() >= playerIndex){
+				//I'm going to try this logic for position updates until I find that it's unreliable.  I'm tired of looping through each player every time
+				if(inDirection == "x"){
+					if(((velocity < 0 && playerList.get(playerIndex).getPos().x >= 0) || (velocity >= 0 && playerList.get(playerIndex).getPos().x <= 1080 - playerList.get(playerIndex).getImage().getWidth())) && !wallCollision(playerList.get(playerIndex), velocity, inDirection)){
+						playerList.get(playerIndex).updateX(velocity);
+						//sendPosition(playerList.get(id - 1).getPos());
+					}
+				}else{
+					if(((velocity < 0 && playerList.get(playerIndex).getPos().y > 0) || (velocity > 0 && playerList.get(playerIndex).getPos().y <= 720 - playerList.get(playerIndex).getImage().getHeight())) && !wallCollision(playerList.get(playerIndex), velocity, inDirection)){
+						playerList.get(playerIndex).updateY(velocity);
+						
+						//sendPosition(playerList.get(id - 1).getPos());
+					}
 				}
 			}
 		}
@@ -392,7 +536,7 @@ public class TobyClient {
 						p.updateX(velocity);
 					}else{
 						p.updateY(velocity);
-					}
+					}w
 					
 					sendPosition(playerList.get(id - 1).getPos());
 					
@@ -407,14 +551,47 @@ public class TobyClient {
 	}
 	
 	public Player getPlayer(){
-		/*Player player = new Player();
-		for(Player p : playerList){
+		Player player = new Player();
+		/*for(Player p : playerList){
 			if(p.getId() == id){
 				player = p;
 			}
 		}*/
+		Iterator<Player> it = playerList.iterator();
+		while(it.hasNext()){
+			player = it.next();
+			
+			if(player.getId() == id){
+				break;
+			}
+				
+			
+		}
+		if(player.getId() != id){
+			player = null;
+		}
 		
-		return playerList.get(id - 1);
+		
+		
+		return player;
+		
+		
+		//return playerList.get(playerIndex);
+		
+		
+	}
+	
+	public Player getPlayer(int inId){
+		Player player = null;
+		
+		for(Player p : playerList){
+			if(p.getId() == inId){
+				player = p;
+				break;
+			}
+		}
+		
+		return player;
 	}
 	
 	public void pingForBombs(){
@@ -441,7 +618,39 @@ public class TobyClient {
 	public void sendArmedBomb(Bomb inBomb){
 		ArmBomb bomb = new ArmBomb();
 		bomb.bombId = inBomb.getId();
+		
 		bomb.playerId = id;
+		if(inBomb.getState() == State.THROWN){
+			bomb.thrown = 1;
+			
+		}else{
+			bomb.thrown = 0;
+			
+		}
+		bomb.xVel = inBomb.getXThrow();
+		bomb.yVel = inBomb.getYThrow();
+		
+		client.sendTCP(bomb);
+		
+		
+	}
+	
+	public void sendArmedBomb(Bomb inBomb, float inX, float inY){
+		ArmBomb bomb = new ArmBomb();
+		bomb.bombId = inBomb.getId();
+		
+		bomb.playerId = id;
+		if(inBomb.getState() == State.THROWN){
+			bomb.thrown = 1;
+			
+		}else{
+			bomb.thrown = 0;
+			
+		}
+		bomb.xVel = inBomb.getXThrow();
+		bomb.yVel = inBomb.getYThrow();
+		bomb.xPos = inX;
+		bomb.yPos = inY;
 		client.sendTCP(bomb);
 		
 		
@@ -450,8 +659,10 @@ public class TobyClient {
 	public void explodeBomb(int[] inList){
 		ExplodeBomb bomb = new ExplodeBomb();
 		bomb.bombIdList = new int[inList.length];
+		
 		for(int i = 0; i< inList.length; i++){
 			bomb.bombIdList[i] = inList[i];
+			
 		}
 		
 		client.sendTCP(bomb);
@@ -470,11 +681,16 @@ public class TobyClient {
 		client.sendTCP(newBomb);
 	}
 	
-	public void sendDeadPlayer(){
+	public void deleteBomb(Bomb inBomb){
+		bombList.remove(inBomb);
+	}
+	
+	public void sendDeadPlayer(int inId){
 		DeadPlayer dPlayer = new DeadPlayer();
 		dPlayer.playerId = id;
 		dPlayer.x = 0;
 		dPlayer.y = 0;
+		dPlayer.killerId = inId;
 		client.sendTCP(dPlayer);
 			
 		
@@ -485,9 +701,185 @@ public class TobyClient {
 		dPlayer.playerId = id;
 		dPlayer.x = -1;
 		dPlayer.y = -1;
+		dPlayer.killerId = -1;
 		client.sendTCP(dPlayer);
 	}
+	
+	public int getPlayerIndex(){
+		return playerIndex;
+	}
+	
+	public void setPlayerIndex(){
+		for(Player p : playerList){
+			if(p.getId() == id){
+				playerIndex = playerList.indexOf(p);
+				currentPlayer = p;
+			}
+		}
+	}
+	
+	private boolean wallCollision(Player p, float velocity, String direction){
+		boolean collide = false;
+		Rectangle testRect;
+		float newX = p.getPos().x;
+		float newY = p.getPos().y;
+		if(direction.equals("x")){
+			newX = p.getPos().x + velocity;
+		}else{
+			newY = p.getPos().y + velocity;
+		}
+		testRect = new Rectangle(newX, newY, p.getImage().getWidth(), p.getImage().getHeight());
+		for(Wall w : wallList){
+			if(testRect.overlaps(w.getRectangle())){
+				collide = true;
+				break;
+			}
+		}
+		
+		if(testRect.overlaps(verticalWall.getRectangle())){
+			collide = true;
+		}
+		
+		return collide;
+	}
+	
+	public boolean shrapnelWallCollision(Shrapnel sh){
+		boolean collide = false;
+		
+		for(Wall w : wallList){
+			if(sh.getRect().overlaps(w.getRectangle())){
+				collide = true;
+				break;
+			}
+		}
+		
+		if(sh.getRect().overlaps(verticalWall.getRectangle())){
+			collide = true;
+		}
+		
+		return collide;
+	}
+	
+	public void makeWalls(){
+		
+		wallList.add(new Wall(80, 160, "assets/wall.png"));
+		wallList.add(new Wall(80, 520, "assets/wall.png"));
+		wallList.add(new Wall(700, 520, "assets/wall.png"));
+		wallList.add(new Wall(700, 160, "assets/wall.png"));
+		verticalWall = new Wall(500,200, "assets/wall2.png");
+	}
+	
+	public ArrayList<Wall> getWalls(){
+		return wallList;
+	}
+	
+	public void update(){
+		try {
+			client.update(60000);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
     
+	public Bomb getBomb(int inId){
+		Bomb bomb = null;
+		
+		for(Bomb b : bombList){
+			if(b.getId() == inId){
+				bomb = b;
+				break;
+			}
+		}
+		
+		return bomb;
+	}
+	
+	public void checkVisibility(){
+		Player player = getPlayer();
+		
+		Rectangle testRect = new Rectangle(player.getRect().getX(), player.getRect().getY(),10,10);
+		
+		Point2D.Float temp = new Point2D.Float(player.getPos().x + 5, player.getPos().y + 5);
+		Point2D.Float temp2;
+		boolean invisible = false;
+		
+		for(Player p : playerList){
+			
+			if(p != getPlayer()){
+				temp2 = new Point2D.Float(p.getPos().x + 5, p.getPos().y + 5);
+				while(temp.distance(temp2) >= 16){
+					if(temp.x > temp2.x){
+						temp.x -= 5;
+					}else{
+						temp.x += 5;
+					}
+					if(temp.y > temp2.y){
+						temp.y -= 5;
+					}else{
+						temp.y += 5;
+					}
+					
+					testRect.setX(temp.x);
+					testRect.setY(temp.y);
+					
+					for(Wall w : wallList){
+						if(w.getRectangle().overlaps(testRect)){
+							invisible = true;
+							break;
+						}
+					}
+					if(invisible == true){
+						p.makeInvisible();
+						break;
+					}
+				}
+				if(invisible == false){
+					p.makeVisible();
+				}
+			}
+		}
+	}
+	
+	public void checkVisibility(Player player1, Player player2){
+		
+		
+		
+		Line2D.Float line = new Line2D.Float(player1.getPos().x + 5, player1.getPos().y + 5, player2.getPos().x + 5, player2.getPos().y + 5);
+		boolean invisible = false;
+		Rectangle2D.Float wallRect;
+		for(Wall w : wallList){
+			wallRect = new Rectangle2D.Float(w.getX(), w.getY(), 256, 16);
+			if(line.intersects(wallRect)){
+				invisible = true;
+				break;
+			}
+		}
+		
+		wallRect = new Rectangle2D.Float(verticalWall.getX(), verticalWall.getY(), 16, 256);
+		if(line.intersects(wallRect)){
+			invisible = true;
+		}
+		
+		if(invisible == true){
+			player2.makeInvisible();
+		}
+		else if(invisible == false){
+			player2.makeVisible();
+		}
+	}
+	
+	public float getAngle(Player player1, Player player2) {
+	    float angle = (float) Math.toDegrees(Math.atan2(player2.getPos().x - player1.getPos().x, player2.getPos().y - player1.getPos().y));
+
+	    if(angle < 0){
+	        angle += 360;
+	    }
+
+	    return angle;
+	}
+	
+	
     
 
 }

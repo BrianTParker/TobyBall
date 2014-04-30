@@ -9,7 +9,7 @@ import com.badlogic.gdx.math.Rectangle;
 public class Bomb {
 	
 	enum State{
-		EXPLODE, ARMED, INERT, TRAVELLING
+		EXPLODE, ARMED, INERT, TRAVELLING, THROWN
 	}
 	
 	Point2D.Float pos;
@@ -22,6 +22,9 @@ public class Bomb {
 	int id;
 	int[] shrapnelAngles;
 	int deleteCount;
+	int throwXVelocity, throwYVelocity;
+	int owner;
+	
 	public Bomb(){
 		
 	}
@@ -34,8 +37,11 @@ public class Bomb {
 		id = inId;
 		//populateShrapnel();
 		state = State.INERT;
-		shrapnelAngles = new int[20];
+		shrapnelAngles = new int[50];
 		markForDelete = false;
+		throwXVelocity = 0;
+		throwYVelocity = 0;
+		int owner = -1;
 	}
 	
 	
@@ -72,6 +78,11 @@ public class Bomb {
 		if(inState == State.ARMED){
 			imageLocation = "assets/bomb_armed.png";
 			
+		}else if(inState == State.EXPLODE){
+			for(Shrapnel sh : shrapnel){
+				sh.setX(pos.x);
+				sh.setY(pos.y);
+			}
 		}
 	}
 	
@@ -83,7 +94,7 @@ public class Bomb {
 		pos = inPos;
 	}
 	
-	public void plantBomb(float inX, float inY){
+	public void plantBomb(float inX, float inY, int inId){
 		pos = new Point2D.Float(inX, inY);
 		state = State.ARMED;
 		imageLocation = "assets/bomb_armed.png";
@@ -91,9 +102,22 @@ public class Bomb {
 		for(Shrapnel sh : shrapnel){
 			sh.setX(inX);
 			sh.setY(inY);
+			sh.setPlayerId(inId);
 		}
 		
 		
+	}
+	
+	public void throwBomb(float inX, float inY, int inId){
+		pos = new Point2D.Float(inX, inY);
+		state = State.THROWN;
+		imageLocation = "assets/bomb_armed.png";
+		
+		for(Shrapnel sh : shrapnel){
+			sh.setX(inX);
+			sh.setY(inY);
+			sh.setPlayerId(inId);
+		}
 	}
 	
 	public void removeShrapnel(Shrapnel inShrap){
@@ -130,5 +154,68 @@ public class Bomb {
 		return deleteCount;
 	}
 	
+	public void setXThrowVelocity(int inSpeed){
+		throwXVelocity = inSpeed;
+	}
+	
+	public void setYThrowVelocity(int inSpeed){
+		throwYVelocity = inSpeed;
+	}
+	
+	public void updatePosition(ArrayList<Wall> wallList, Wall verticalWall){
+		
+		float testX, testY;
+		Rectangle testRect;
+		
+		testX = pos.x + throwXVelocity;
+		testY = pos.y + throwYVelocity;
+		testRect = new Rectangle(testX, testY, image.getWidth(), image.getHeight());
+		
+		for(Wall w : wallList){
+			
+			if(throwYVelocity > 0 && testRect.overlaps(w.getRectangle())){
+				throwYVelocity = -7;
+				
+			}else if(throwYVelocity < 0 && testRect.overlaps(w.getRectangle())){
+				throwYVelocity = 7;
+			}
+			
+		}
+		
+		if(throwXVelocity > 0 && testRect.overlaps(verticalWall.getRectangle())){
+			throwXVelocity = -7;
+			
+		}else if(throwXVelocity < 0 && testRect.overlaps(verticalWall.getRectangle())){
+			throwXVelocity = 7;
+		}
+		
+		
+		
+		if(pos.x >= 1060){
+			throwXVelocity = -7;
+		}else if(pos.x <= 0){
+			throwXVelocity = 7;
+		}
+		if(pos.y >= 705){
+			throwYVelocity = -7;
+		}else if(pos.y <= 0){
+			throwYVelocity = 7;
+		}
+		pos.x += throwXVelocity;
+		pos.y += throwYVelocity;
+		bombRect = new Rectangle(pos.x, pos.y, image.getWidth(), image.getHeight());
+		
+	}
+	
+	public int getXThrow(){
+		return throwXVelocity;
+	}
+	public int getYThrow(){
+		return throwYVelocity;
+	}
+	
+	public void setOwner(int inId){
+		owner = inId;
+	}
 
 }
