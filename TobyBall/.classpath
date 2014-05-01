@@ -8,7 +8,7 @@
 	<classpathentry kind="lib" path="C:/eclipse_workspace/TobyBall/TobyBall/libs/gdx-natives.jar"/>
 	<classpathentry kind="lib" path="C:/eclipse_workspace/TobyBall/TobyBall/libs/gdx-sources.jar"/>
 	<classpathentry kind="lib" path="C:/eclipse_workspace/TobyBall/TobyBall/libs/kryonet-2.18-all.jar"/>
-	<classpathentry kind="lib" path="C:/eclipse_workspace/TobyBallGitHub/TobyBall/TobyBall/libs/tween-engine-api.jar"/>
-	<classpathentry kind="lib" path="C:/eclipse_workspace/TobyBallGitHub/TobyBall/TobyBall/libs/tween-engine-api-sources.jar"/>
+	<classpathentry kind="lib" path="libs/tween-engine-api-sources.jar"/>
+	<classpathentry kind="lib" path="libs/tween-engine-api.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
