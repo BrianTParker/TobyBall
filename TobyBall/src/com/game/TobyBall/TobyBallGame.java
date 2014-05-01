@@ -18,6 +18,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 //import com.game.TobyBall.Bomb.State;
 import com.game.TobyBall.Bomb.State;
+import com.game.screens.Splash;
 
 public class TobyBallGame extends Game{
 	
@@ -37,6 +38,10 @@ public class TobyBallGame extends Game{
 		UP, DOWN, NONE
 	}
 	
+	public enum gameState{
+		SPLASH, MENU, PLAY
+	}
+	
 	
 	SpriteBatch batch;
 	
@@ -48,6 +53,7 @@ public class TobyBallGame extends Game{
 	upOrDown yDirection;
 	TobyClient client;
 	TobyServer server;
+	gameState gameState;
 	
 	int playerListPing, bombListPing;
 	boolean host;
@@ -75,6 +81,8 @@ public class TobyBallGame extends Game{
 	Sound throwBomb;
 
 	public void create () {
+		gameState = gameState.SPLASH;
+		setScreen(new Splash());
 		
 		host = true;
 		stealthGame = false;
@@ -146,7 +154,7 @@ public class TobyBallGame extends Game{
 
 	public void render () {
 		super.render();
-		
+		if(gameState == gameState.PLAY){
 		playerVelocity = 0;
 		playerDirection = "z";
 		deleteBomb = null;
@@ -475,7 +483,7 @@ public class TobyBallGame extends Game{
 		bombListPing++;
 		playerPositionCount++;
 		
-		
+		}
 	}
 
 	public void resize (int width, int height) {
