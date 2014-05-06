@@ -45,8 +45,11 @@ public class TobyServer {
         server.bind(54555, 54777);
         numPlayers = 0;
         
+        
+        
         Kryo kryo = server.getKryo();
         
+        //every class has to be registered with the kryo library
         kryo.register(NewPlayerList.class);
         kryo.register(ArrayList.class);
         kryo.register(Player.class);
@@ -79,8 +82,11 @@ public class TobyServer {
         kryo.register(PlayerDisconnect.class);
         kryo.register(BombSteal.class);
         
+        
+        //The main server listener
         server.addListener(new Listener(){
 		 	
+        	//method called whenever a client disconnects
 			public void disconnected(Connection connection){
 				numPlayers--;
 				System.out.println( "Client " + connection.getID() + " Disconnected");
@@ -104,7 +110,7 @@ public class TobyServer {
 			 	}
 			
 			
-			     
+			 //method called whenever a client connects    
 		     public void connected(Connection connection){
 		    	 
 		    	 
@@ -125,31 +131,34 @@ public class TobyServer {
 	        		 asset = "assets/player5.png";
 	        	 }
 	        		
-	        	 
+	        	 //create a new player object and add it to the list of players
 		         playerList.add(new Player(getValidPosition(), connection.getID(),asset ));
 		         
 		         
+		         //create a packet containing the new players id
 		         PlayerId id = new PlayerId();
 		         
 		         id.id = connection.getID();
 		         
+		         //send the packet back to the client who just connected to let them know what their id is
 		         connection.sendTCP(id);
 		         
 		        	
 		         
 		         playerId++;
 		         
+		         //create a packet containing the new list of players and send it out to every connected client
 		         NewPlayerList list = new NewPlayerList();
 		         list.playerList = playerList;
 		         server.sendToAllTCP(list);
 		         
 		         
-		         
+		         //create a packet containing the list of bombs
 		         SendBombs newBList = new SendBombs();
 	        	 newBList.bombList = bombList;
 	        	 
 	        	 
-	        	 
+	        	 //send the list of bombs to the player who just connected
 	        	 connection.sendTCP(newBList);
 			            
 			    
@@ -157,19 +166,25 @@ public class TobyServer {
 		        
 		         
 		     }
-		
+		     
+		     
+		     //The main communication method.  This is called whenever a packet is received from a client.  The instance of the packet determines what to do with it
 		     public void received(Connection connection, Object object){
 		         
+		    	 
+		    	 //A client is requesting a new list of players
 		         if(object instanceof NewPlayerList){
 		        	 NewPlayerList list = new NewPlayerList();
 		        	 list.playerList = playerList;
 		        	 connection.sendTCP(list);
+		        	 
+		         //A client is requesting their id
 		         }else if(object instanceof PlayerId){
 		        	 PlayerId playerId = new PlayerId();
 		        	 playerId.id = connection.getID();
 		        	 connection.sendTCP(playerId);
 		        	 
-		        	 
+		         //a client is sending their position.  the server updates it's version of the player and then updates all the other clients	 
 		         }else if(object instanceof SendPosition){
 		         
 		        	 SendPosition newPos = (SendPosition)object;
@@ -182,12 +197,19 @@ public class TobyServer {
 		        	 position.id = connection.getID();
 		        	 position.x = newPos.x;
 		        	 position.y = newPos.y;
+		        	 
+		        	 //update all clients except the one who just sent the packet
 		        	 server.sendToAllExceptTCP(connection.getID(), position);
+		        	 
+		         
+		         //a client is requesting a list of bombs
 		         }else if(object instanceof SendBombs){
 		        	 
 		        	 SendBombs newBList = (SendBombs)object;
 		        	 newBList.bombList = bombList;
 		        	 connection.sendTCP(newBList);
+		        	 
+		         //a client is asking the server if they can pick up a bomb or if they can catch a thrown bomb
 		         }else if(object instanceof RequestBomb){
 		        	 
 		        	 RequestBomb inBomb = (RequestBomb)object;
@@ -224,6 +246,8 @@ public class TobyServer {
 		        			 
 		        		 }
 		        	 }
+		        	 
+		         //A client is telling the server that a bomb has been armed
 		         }if(object instanceof ArmBomb){
 		        	 
 		        	 ArmBomb inBomb = (ArmBomb)object;
@@ -258,7 +282,9 @@ public class TobyServer {
 		        	 //System.out.println("Sending to all other clients");
 		        	 
 		        	 server.sendToAllExceptTCP(connection.getID(), inBomb);
+		         
 		        	 
+		         //a client is telling the server that its local player exploded his bombs
 		         }else if(object instanceof ExplodeBomb){
 		        	 ExplodeBomb inBomb = (ExplodeBomb)object;
 		        	 
@@ -271,6 +297,8 @@ public class TobyServer {
 		        	 }
 		        	 
 		        	 server.sendToAllExceptTCP(connection.getID(), inBomb);
+		        	 
+		         //A client is telling the server that a bomb is done exploding and should be deleted
 		         }else if(object instanceof DeleteBomb){
 		        	 
 		        	 Bomb newBomb = null;
@@ -302,6 +330,8 @@ public class TobyServer {
 		        	 if(newBomb != null){
 		        		 bombList.add(newBomb);
 		        	 }
+		        	 
+		         //A client is telling the server that its local player has died
 		         }else if(object instanceof DeadPlayer){
 		        	 DeadPlayer player = (DeadPlayer)object;
 		        	 
@@ -337,19 +367,29 @@ public class TobyServer {
     	
     	bombList = new ArrayList<Bomb>();
     	
-    	for(int i = 0; i < 5; i++){
-    		//Bomb newBomb = new Bomb(new Point2D.Float((float)bombRand.nextInt(1000), (float)bombRand.nextInt(700)), bombId);
+    	int numBombs = 5;
+    	int numShrapnel = 50;
+    	
+    	//this was a little tricky.  Kryonet was having issues serializing bombs that had images and a list of shrapnel objects so i'm essentially 
+    	//creating the instructions on how to build each bomb, and then the individual clients actually build them on their end.  
+    	//Each bomb has a list of random angles that are used for determining the trajectory of each piece of shrapnel.  This has to be pre-determined 
+    	//on the server so that it's the same for each client
+    	for(int i = 0; i < numBombs; i++){
+    		
     		Bomb newBomb = new Bomb(getValidPosition(), bombId);
-    		for(int p = 0; p < 50; p++){
-    			//newBomb.addShrapnel(new Shrapnel(newBomb.getPos().x + 8,newBomb.getPos().y + 8, bombRand.nextInt(360)));
+    		
+    		for(int p = 0; p < numShrapnel; p++){
+    			
     			newBomb.addAngle(bombRand.nextInt(360), p);
-    			//newBomb.addShrapnel(new Shrapnel());
+    			
     		}
     		bombList.add(newBomb);
     		bombId++;
     	}
     }
     
+    
+    //This is not being used for anything
     public void updateClients(){
     	UpdateGameState gameState = new UpdateGameState();
     	gameState.playerIds = new int[playerList.size()];
@@ -424,6 +464,7 @@ public class TobyServer {
 		
 	}
     
+    //returns a valid position for bomb placement so that bombs aren't placed inside of walls
     public Point2D.Float getValidPosition(){
     	float x, y;
     	x = (float)bombRand.nextInt(1000);
