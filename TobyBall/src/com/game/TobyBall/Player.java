@@ -9,8 +9,7 @@ import com.esotericsoftware.kryonet.EndPoint;
 
 public class Player {
 	
-        private final Health health = new Health( 0, 5 );	
-    
+	
 	Point2D.Float pos;
 	Texture image;
 	
