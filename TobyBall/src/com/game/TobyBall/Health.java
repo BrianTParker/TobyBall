@@ -16,4 +16,9 @@ public class Health extends AEssence {
         
         m_range = new Range( aMin, aMax );
     }
+
+    @Override
+    public int getValue() {
+        return m_range.getMAX() - super.getValue();
+    }
 }
