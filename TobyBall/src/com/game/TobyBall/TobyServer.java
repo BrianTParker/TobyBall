@@ -78,9 +78,6 @@ public class TobyServer {
         kryo.register(DeadPlayer.class);
         kryo.register(PlayerDisconnect.class);
         kryo.register(BombSteal.class);
-        kryo.register(Health.class);
-        kryo.register(java.util.ArrayDeque.class);
-        kryo.register(project_sanity.range.Range.class);
         
         server.addListener(new Listener(){
 		 	
