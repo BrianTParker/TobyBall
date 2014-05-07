@@ -258,4 +258,8 @@ public class Player {
 		invisible = false;
 	}
 
+    public int getHealth() {
+        return health.getValue();
+    }
+
 }
