@@ -1,7 +1,6 @@
 package com.game.TobyBall;
 
 import project_sanity.essence.AEssence;
-import project_sanity.range.Range;
 
 /**
  * Health system for TobyBall. 
@@ -10,10 +9,4 @@ import project_sanity.range.Range;
  */
 public class Health extends AEssence {
     
-    private final Range m_range;
-
-    public Health( int aMin, int aMax ) {
-        
-        m_range = new Range( aMin, aMax );
-    }
 }
