@@ -528,6 +528,7 @@ public class TobyBallGame extends Game{
 
 	public void dispose () {
 		super.dispose();
+                Gdx.app.exit();
 	}
 	
 
