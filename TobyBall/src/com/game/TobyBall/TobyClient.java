@@ -475,6 +475,8 @@ public class TobyClient {
         kryo.register(DeadPlayer.class);
         kryo.register(PlayerDisconnect.class);
         kryo.register(BombSteal.class);
+        kryo.register(com.game.TobyBall.Health.class);
+        kryo.register(java.util.ArrayDeque.class);
         
     }
 	
