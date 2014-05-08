@@ -453,6 +453,7 @@ public class TobyBallGame extends Game{
 							//Checks to see if the player is invisible and/or is a stealth game.  
 							if((!stealthGame) || (stealthGame && !p.isInvisible()) ){
 								batch.draw(p.getImage(), p.getPos().x, p.getPos().y);
+                                                                font.draw(batch, Integer.toString(p.getHealth()), p.getPos().x,p.getPos().y);
 							}
 							
 						}
