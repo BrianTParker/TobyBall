@@ -8,8 +8,9 @@ import com.badlogic.gdx.math.Rectangle;
 import com.esotericsoftware.kryonet.EndPoint;
 
 public class Player {
-	
-	
+    
+        Health health = new Health( 0, 5 );
+    
 	Point2D.Float pos;
 	Texture image;
 	
@@ -257,4 +258,7 @@ public class Player {
 		invisible = false;
 	}
 
+        public int getHealth(){
+            return health.getValue();
+        }
 }
