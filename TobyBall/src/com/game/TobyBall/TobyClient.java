@@ -43,13 +43,17 @@ public class TobyClient {
 	
 	}
 	public TobyClient(String IP) throws IOException{
-		client = new Client();
-		//playerList = new Vector<Player>();
 		
+		
+		client = new Client();
+		
+		//list of all bombs in the game
 		bombList = new ArrayList<Bomb>();
-	    registerPackets();
-	    new Thread(client).start();
-	    client.connect(80000, IP, 54555, 54777);
+		
+	    registerPackets();  //every class that is going to be serialized by the kryonet library has to be registered.  Otherwise an exception is thrown
+	    new Thread(client).start(); //starts the client Listener
+	    
+	    client.connect(80000, IP, 54555, 54777); //first value is the timeout, then IP address, then TCP/UDP ports
 	    currentPlayer = new Player();
 	    id = -1;
 	    playerIndex = -1;
@@ -62,9 +66,10 @@ public class TobyClient {
 	  
 	    		
 	    	
-	   
+		
 		 client.addListener(new Listener(){
 		    
+			 //function is only called on initial connection
 			public void connected(Connection connection){
 				
 				pingForId();
@@ -73,6 +78,7 @@ public class TobyClient {
 				
 			}
 			
+			//only called on disconnect
 		    public void disconnected(Connection connection){
 		    	
 		    }
@@ -80,13 +86,26 @@ public class TobyClient {
 		    
 		    
 		    		
-		    	
+		    //called whenever a packet is received from the client
 		    public void received(Connection connection, Object object){
 		    	
 		    			
-		    	
-			        	 if(object instanceof NewPlayerList){
-			        		 final NewPlayerList list = (NewPlayerList)object; 
+		    			//this is a giant if statement that checks what class the packet is
+		    			//depending on what kind of packet it is, you handle the information differently
+		    			//This is the main bread and butter of the client/server communication
+				    	
+				    	//this is where threading gets a little tricky.  The main game loop is running in the main thread and the client listener is running
+						 //in a separate thread.  libGDX requires that all logic happens in the main thread so each one of these if statements has a postRunnable  
+						 //that syncs the listener thread back with the main thread.  Any variables or objects that you want to access inside the postRunnable
+						 //have to be declared final.  This gave me the biggest headache.  
+			        	
+		    			
+		    			
+		    			//A new list of players was received from the server
+		    			if(object instanceof NewPlayerList){
+			        		 
+		    				//cast the object to the appropriate class
+		    				final NewPlayerList list = (NewPlayerList)object;
 			        		 Gdx.app.postRunnable(new Runnable() {
 			        			 boolean found = false;
 			        	         @Override
@@ -94,7 +113,7 @@ public class TobyClient {
 			        	            
 			        	       
 					        	
-					    		//playerList = list.playerList;
+					    		//iterate through the player list from the server and add any players to your local list that are new
 					    		for(Player serverList : list.playerList){
 					    			found = false;
 					    			int indexCount = 0;
@@ -115,18 +134,20 @@ public class TobyClient {
 							    		}
 					    			}
 					    			
-					    			if(found == false){
+					    			if(found == false){ 
 					    				
 					    				Player newPlayer = serverList;
 					    				serverList.setImage();
 					    				newPlayer.setImage();
 					    				
-					    				playerList.add(serverList);
+					    				playerList.add(serverList); //add the new player to the local list
 					    				
 					    				
 					    			}
 					    		}
 					    		
+					    		//I think i was trying to get the index of the local player here, so you didn't have to iterate through the list of players each time 
+					    		//you wanted to find yourself
 					    		if(id == 1){
 			    					playerIndex = 0;
 			    				}else{
@@ -139,13 +160,15 @@ public class TobyClient {
 					    		
 			        	         }
 			        	      });   
-					    		
+					    	
+			        		
+			        		 //the server is sending the id of the local player
 					    	}else if(object instanceof PlayerId){
 					    		final PlayerId playerId = (PlayerId)object;
 					    		Gdx.app.postRunnable(new Runnable() {
 					    	         @Override
 					    	         public void run() {
-					    	            // process the result, e.g. add it to an Array<Result> field of the ApplicationListener.
+					    	            
 					    	        	 
 					    	       
 					    	        	 	
@@ -153,7 +176,8 @@ public class TobyClient {
 					    	         }
 					    	      });
 					    		
-					    		
+					    	
+					    	//update the position of a remote player
 					    	}else if(object instanceof UpdateAllOtherPositions){
 					    		
 					    		final UpdateAllOtherPositions newPos = (UpdateAllOtherPositions)object;
@@ -165,38 +189,17 @@ public class TobyClient {
 							    		for(Player p : playerList){
 							    			if(p.getId() == newPos.id){
 							    				
-							    				//set the players last known position in order to simulate movement
+							    				//set the players last known position in order to simulate movement.
+							    				//the local copy of the player is moved towards the last known position
 							    				p.setLastKnownX(newPos.x);
 							    				p.setLastKnownY(newPos.y);
-						    					/*if(p.getPos().x >=  newPos.x - 15 && p.getPos().x <= newPos.x + 15){
-						    						p.setXVelocity(0);
-						    					}else if(p.getPos().x >= newPos.x){
-						    						
-						    						p.setXVelocity(-5);
-						    					}else{
-						    						
-						    						p.setXVelocity(5);
-						    					}
-							    				//}
-							    				
-						    					if(p.getPos().y <= newPos.y - 15){
-						    						p.setYVelocity(5);
-						    					}else if(p.getPos().y >= newPos.y + 15){
-						    						p.setYVelocity(-5);
-						    					}else{
-						    						p.setYVelocity(0);
-						    					}
-							    				
-							    				
-							    				if(Math.abs(p.getPos().x - newPos.x) >= 100 || Math.abs(p.getPos().y - newPos.y) >= 100){
-							    					p.setXPosition(newPos.x);
-							    					p.setYPosition(newPos.y);
-						    					}*/
-							    				//p.setPosition(new Point2D.Float(newPos.x, newPos.y));
+						    					
 							    			}
 							    		}
 					    	         }
 					    	      });
+					    		
+					    	//get a list of bombs from the server and add any new ones to the local list
 					    	}else if(object instanceof SendBombs){
 					    		
 					    		final SendBombs bList = (SendBombs)object;
@@ -228,6 +231,9 @@ public class TobyClient {
 					    		
 					    	         }
 					    	      });
+					    		
+					    	//information from the server that lets the client know a player has picked up a bomb and is holding it
+					    	//Packet contains the bomb id and player id 
 					    	}else if(object instanceof RequestBomb){
 					    		
 					    		final RequestBomb inBomb = (RequestBomb)object;
@@ -251,6 +257,9 @@ public class TobyClient {
 							    		
 					    	         }
 					    	      });
+					    		
+					    	//information from the server that lets the client know a bomb has moved to the ARMED/THROWN state
+					    	//Packet contains the bomb id of the exploded bomb, player id who planted it, and the x/y positions and velocities of the bomb
 					    	}else if(object instanceof ArmBomb){
 					    		final ArmBomb inBomb = (ArmBomb)object;
 					    		Gdx.app.postRunnable(new Runnable() {
@@ -287,6 +296,8 @@ public class TobyClient {
 							    	  }
 					    	      });
 					    	
+					    	//information from the server that lets the client know a bomb has exploded
+					    	//Packet contains a list of bomb ids
 					    	}else if(object instanceof ExplodeBomb){
 					    		final ExplodeBomb inBomb = (ExplodeBomb)object;
 					    		Gdx.app.postRunnable(new Runnable() {
@@ -306,6 +317,9 @@ public class TobyClient {
 							    		
 					    	         }
 					    	      });
+					    		
+					    	//I think this is a hold over from one of my attempts in client/server communication
+					    	//I don't think the server is sending this packet ever in the current version of the game but I don't want to delete this section yet
 					    	}else if(object instanceof UpdateGameState){
 					    		final UpdateGameState newState = (UpdateGameState)object;
 					    		Gdx.app.postRunnable(new Runnable() {
@@ -335,6 +349,8 @@ public class TobyClient {
 							    		}
 					    	         }
 					    	      });
+					    		
+					    	//new bomb information from the server.  The client adds it to the local list
 					    	}else if(object instanceof NewBomb){
 					    		final NewBomb newBomb = (NewBomb)object;
 					    		Gdx.app.postRunnable(new Runnable() {
@@ -348,6 +364,9 @@ public class TobyClient {
 					    	        	bombList.add(newBomb.newBomb);
 					    	         }
 					    		});
+					    		
+					    	//Information from the server letting the client know that a player has died.  
+					    	//Packet contains the playerId who died, as well as the playerID that did the killing
 					    	}else if(object instanceof DeadPlayer){
 					    		final DeadPlayer player = (DeadPlayer)object;
 					    		Gdx.app.postRunnable(new Runnable() {
@@ -395,6 +414,8 @@ public class TobyClient {
 					    	        	 }
 					    	         }
 					    		});
+					    		
+					    	//information from the server letting the client know a player has disconnected
 					    	}else if(object instanceof PlayerDisconnect){
 					    		final PlayerDisconnect playerDis = (PlayerDisconnect)object;
 					    		
@@ -421,6 +442,8 @@ public class TobyClient {
 					    	        	 }
 					    	         }
 					    		});
+					    		
+					    	//information from the server letting the client know that a thrown bomb has been caught
 					    	}else if(object instanceof BombSteal){
 					    		final BombSteal bomb = (BombSteal)object;
 					    		
@@ -484,6 +507,7 @@ public class TobyClient {
 		return playerList;
 	}
 	
+	//ping the server for a new list of players
 	public void pingForPlayerList(){
 		NewPlayerList list = new NewPlayerList();
 		list.playerList = new ArrayList<Player>();
@@ -494,6 +518,7 @@ public class TobyClient {
 		return id;
 	}
 	
+	//sends the local players position to the server
 	public void sendPosition(Point2D.Float inPos){
 		SendPosition newPos = new SendPosition();
 		newPos.x = inPos.x;
@@ -501,8 +526,12 @@ public class TobyClient {
 		client.sendTCP(newPos);
 	}
 	
+	
+	//takes a velocity and x/y direction.  
+	//if there is no collision with a wall, then update the players position 
 	public void updatePlayerPosition(float velocity, String inDirection){
 		
+		//get the index of the local player in the list of players
 		if(playerIndex >= playerList.size()){
 			for(Player p : playerList){
 				if(p.getId() == id){
@@ -512,17 +541,17 @@ public class TobyClient {
 		}else{
 		
 			if(playerIndex >= 0 && playerList.size() >= playerIndex){
-				//I'm going to try this logic for position updates until I find that it's unreliable.  I'm tired of looping through each player every time
+				
 				if(inDirection == "x"){
 					if(((velocity < 0 && playerList.get(playerIndex).getPos().x >= 0) || (velocity >= 0 && playerList.get(playerIndex).getPos().x <= 1080 - playerList.get(playerIndex).getImage().getWidth())) && !wallCollision(playerList.get(playerIndex), velocity, inDirection)){
 						playerList.get(playerIndex).updateX(velocity);
-						//sendPosition(playerList.get(id - 1).getPos());
+						
 					}
 				}else{
 					if(((velocity < 0 && playerList.get(playerIndex).getPos().y > 0) || (velocity > 0 && playerList.get(playerIndex).getPos().y <= 720 - playerList.get(playerIndex).getImage().getHeight())) && !wallCollision(playerList.get(playerIndex), velocity, inDirection)){
 						playerList.get(playerIndex).updateY(velocity);
 						
-						//sendPosition(playerList.get(id - 1).getPos());
+						
 					}
 				}
 			}
@@ -531,21 +560,7 @@ public class TobyClient {
 			
 		
 		
-			/*for(Player p : playerList){
-				if(p.getId() == id){
-					if(inDirection == "x"){
-						
-						p.updateX(velocity);
-					}else{
-						p.updateY(velocity);
-					}w
-					
-					sendPosition(playerList.get(id - 1).getPos());
-					
-				}
-				
-			}*/
-				
+
 					
 					
 			
