@@ -85,9 +85,9 @@ public class TobyBallGame extends Game{
 	public void create () {
 		
 		//I'm trying to figure out how to have different screens.  I was going to use ENUMS to decide what state the game was in
-		//gameState = gameState.SPLASH;
-		//setScreen(new Splash());
-		gameState = gameState.PLAY;
+		gameState = gameState.SPLASH;
+		setScreen(new Splash());
+		//gameState = gameState.PLAY;
 		
 		//if this is true, the server is created
 		host = true;
